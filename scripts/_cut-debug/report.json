@@ -1,0 +1,46 @@
+{
+  "monster-midnight": {
+    "size": [
+      888,
+      874
+    ]
+  },
+  "monster-slime": {
+    "size": [
+      899,
+      895
+    ]
+  },
+  "concha-galaxia": {
+    "size": [
+      886,
+      845
+    ]
+  },
+  "concha-botones": {
+    "size": [
+      874,
+      884
+    ]
+  },
+  "cinnamon-monster-held": {
+    "size": [
+      626,
+      679
+    ]
+  },
+  "hand": {
+    "size": [
+      1007,
+      528
+    ],
+    "back": [
+      862,
+      280
+    ],
+    "front": [
+      997,
+      429
+    ]
+  }
+}

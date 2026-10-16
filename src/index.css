@@ -1,0 +1,39 @@
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; overflow-x: hidden; }
+  body { @apply bg-milk text-cocoa font-body antialiased; }
+  h1, h2, h3 { @apply font-display; }
+  :focus-visible { outline: 3px solid theme('colors.raspberry'); outline-offset: 3px; border-radius: 6px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(255, 252, 247, 0.72);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(43, 25, 17, 0.08);
+  }
+  .glass-dark {
+    background: rgba(43, 25, 17, 0.78);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255, 252, 247, 0.12);
+  }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-chip font-semibold transition-[transform,background-color,box-shadow] duration-200 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply btn bg-raspberry text-milk hover:bg-raspberry2 px-6 py-3 shadow-lift; }
+  .btn-dark { @apply btn bg-cocoa text-milk hover:bg-cocoa2 px-6 py-3; }
+  .btn-ghost { @apply btn bg-oat text-cocoa hover:bg-oatdeep px-5 py-3; }
+  .input { @apply w-full rounded-tile bg-white/70 border border-cocoa/10 px-4 py-3 text-cocoa placeholder:text-cocoa/40 focus:border-raspberry focus:bg-white transition-colors; }
+  .tile { @apply rounded-tile bg-white/80 border border-cocoa/[0.06]; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
