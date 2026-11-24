@@ -1,15 +1,15 @@
 import { addDays, shopToday } from '../../functions/delivery.js'
 
 export const MOCK_PRODUCTS = [
-  { id: 'monster-midnight', name: 'Midnight Monster', description: 'Black cocoa dough, dark chocolate chips and a fistful of Halloween sprinkles.', price: 5.5, category: 'Seasonal', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/monster-midnight.webp', tone: 'cocoa', filling: 'none' },
-  { id: 'monster-slime', name: 'Slime Monster', description: 'Buttery green dough, milk chocolate chips, candy eyes looking right back at you.', price: 5.5, category: 'Seasonal', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/monster-slime.webp', tone: 'pistachio', filling: 'none' },
-  { id: 'concha-galaxia', name: 'Concha Galaxia', description: 'A marbled teal and magenta sugar shell, scored like a classic concha.', price: 4.5, category: 'Conchas', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-galaxia.webp', tone: 'oat', filling: 'none' },
-  { id: 'concha-botones', name: 'Concha Botones', description: 'Vanilla shell, button eyes, a stitched chocolate smile and a violet flower.', price: 4.5, category: 'Seasonal', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-botones.webp', tone: 'oat', filling: 'none' },
-  { id: 'chocolate-chip', name: 'Classic Chocolate Chip', description: 'Brown butter, crackly edges, soft middle. The one everybody asks for.', price: 4.5, category: 'Cookies', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/chocolate-chip.webp', tone: 'caramel', filling: 'none' },
-  { id: 'concha-rosa', name: 'Concha Rosa', description: 'Pillowy sweet bread under a strawberry-pink sugar shell, scored by hand.', price: 4.0, category: 'Conchas', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-rosa.webp', tone: 'raspberry', filling: 'none' },
-  { id: 'concha-talavera', name: 'Concha Talavera', description: 'Vanilla shell hand-painted in cobalt, after the tiles of Puebla.', price: 4.5, category: 'Conchas', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-talavera.webp', tone: 'oat', filling: 'none' },
-  { id: 'concha-estrella', name: 'Concha Estrella', description: 'Bright red shell, one big golden star. Made to be the centre of the box.', price: 4.5, category: 'Conchas', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-estrella.webp', tone: 'caramel', filling: 'none' },
-  { id: 'concha-azul', name: 'Concha Azul', description: 'A classic sugar shell in sky blue, the everyday concha.', price: 4.0, category: 'Conchas', is_active: true, image_url: import.meta.env.BASE_URL + 'cookies/concha-azul.webp', tone: 'oat', filling: 'none' },
+  { id: 'monster-midnight', name: 'Midnight Monster', description: 'Black cocoa dough, dark chocolate chips and a fistful of Halloween sprinkles.', price: 5.5, category: 'Seasonal', is_active: true, image_url: '/cookies/monster-midnight.webp', tone: 'cocoa', filling: 'none' },
+  { id: 'monster-slime', name: 'Slime Monster', description: 'Buttery green dough, milk chocolate chips, candy eyes looking right back at you.', price: 5.5, category: 'Seasonal', is_active: true, image_url: '/cookies/monster-slime.webp', tone: 'pistachio', filling: 'none' },
+  { id: 'concha-galaxia', name: 'Concha Galaxia', description: 'A marbled teal and magenta sugar shell, scored like a classic concha.', price: 4.5, category: 'Conchas', is_active: true, image_url: '/cookies/concha-galaxia.webp', tone: 'oat', filling: 'none' },
+  { id: 'concha-botones', name: 'Concha Botones', description: 'Vanilla shell, button eyes, a stitched chocolate smile and a violet flower.', price: 4.5, category: 'Seasonal', is_active: true, image_url: '/cookies/concha-botones.webp', tone: 'oat', filling: 'none' },
+  { id: 'chocolate-chip', name: 'Classic Chocolate Chip', description: 'Brown butter, crackly edges, soft middle. The one everybody asks for.', price: 4.5, category: 'Cookies', is_active: true, image_url: '/cookies/chocolate-chip.webp', tone: 'caramel', filling: 'none' },
+  { id: 'concha-rosa', name: 'Concha Rosa', description: 'Pillowy sweet bread under a strawberry-pink sugar shell, scored by hand.', price: 4.0, category: 'Conchas', is_active: true, image_url: '/cookies/concha-rosa.webp', tone: 'raspberry', filling: 'none' },
+  { id: 'concha-talavera', name: 'Concha Talavera', description: 'Vanilla shell hand-painted in cobalt, after the tiles of Puebla.', price: 4.5, category: 'Conchas', is_active: true, image_url: '/cookies/concha-talavera.webp', tone: 'oat', filling: 'none' },
+  { id: 'concha-estrella', name: 'Concha Estrella', description: 'Bright red shell, one big golden star. Made to be the centre of the box.', price: 4.5, category: 'Conchas', is_active: true, image_url: '/cookies/concha-estrella.webp', tone: 'caramel', filling: 'none' },
+  { id: 'concha-azul', name: 'Concha Azul', description: 'A classic sugar shell in sky blue, the everyday concha.', price: 4.0, category: 'Conchas', is_active: true, image_url: '/cookies/concha-azul.webp', tone: 'oat', filling: 'none' },
 ]
 
 export const MOCK_BOXES = [
@@ -37,7 +37,10 @@ export const ORDER_FLOW = [
   { key: 'shipped', label: 'Out for delivery' },
   { key: 'delivered', label: 'Completed' },
 ]
+/** An order the kitchen should bake: paid online, or to be paid on delivery, and not cancelled. */
+export const isLiveOrder = (order) => ['paid', 'unpaid'].includes(order.payment_status) && order.order_status !== 'cancelled'
 export const statusLabel = (order) => {
+  if (order.order_status === 'cancelled') return 'Cancelled'
   if (order.order_status === 'shipped') return order.delivery_type === 'Pickup' ? 'Ready for pickup' : 'Out for delivery'
   return ORDER_FLOW.find((s) => s.key === order.order_status)?.label || order.order_status
 }

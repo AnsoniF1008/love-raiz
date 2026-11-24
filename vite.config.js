@@ -5,7 +5,6 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig(({ mode }) => {
   const demo = mode === 'demo'
   return {
-    base: process.env.VITE_BASE || '/',
     plugins: [react(), ...(demo ? [viteSingleFile()] : [])],
     define: demo ? { 'import.meta.env.VITE_DEMO': '"1"' } : {},
     build: {

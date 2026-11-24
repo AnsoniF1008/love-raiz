@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "build:demo": "vite build --mode demo --outDir demo-dist",
     "fonts": "node scripts/fetch-fonts.mjs",
-    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules,storage,functions"
+    "deploy": "npm run build && firebase deploy --only hosting,firestore",
+    "deploy:rules": "firebase deploy --only firestore",
+    "deploy:full": "npm run build && firebase deploy --only hosting,firestore,storage,functions"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^2.8.1",

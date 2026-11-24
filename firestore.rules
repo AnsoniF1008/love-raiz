@@ -1,8 +1,53 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() { return request.auth != null && request.auth.token.admin == true; }
     function signedIn() { return request.auth != null; }
+
+    // Admins: the `admin` custom claim (functions/scripts/setAdmin.js), or one of
+    // these Google accounts. To add or remove an admin, edit the list and run
+    // `npm run deploy:rules`.
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.get('admin', false) == true
+        || (request.auth.token.get('email_verified', false) == true
+            && request.auth.token.get('email', '') in ['ansoni1008@gmail.com', 'joseline03garcia@gmail.com'])
+      );
+    }
+
+    function text(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    // A pay-on-delivery order written by the storefront. Keep the delivery
+    // windows in step with DELIVERY_SLOTS in functions/delivery.js and the
+    // payment methods with PAYMENT_METHODS in src/lib/business.js.
+    function validNewOrder(o) {
+      return o.keys().hasOnly(['auth_uid', 'user_id', 'items', 'box_id', 'box_discount', 'delivery_fee', 'delivery_miles',
+                               'delivery_type', 'delivery_date', 'delivery_slot', 'total_amount', 'payment_method',
+                               'payment_status', 'order_status', 'customer_info', 'created_at', 'updated_at'])
+        && o.auth_uid == request.auth.uid
+        && (o.user_id == null || o.user_id == request.auth.uid)
+        && o.items is list && o.items.size() >= 1 && o.items.size() <= 30
+        && (o.box_id == null || text(o.box_id, 1, 60))
+        && o.box_discount is number && o.box_discount <= 0 && o.box_discount >= -100
+        && o.total_amount is number && o.total_amount > 0 && o.total_amount <= 5000
+        && (o.delivery_miles == null || o.delivery_miles is number)
+        && o.delivery_fee is number
+        && ((o.delivery_type == 'Pickup' && o.delivery_fee == 0)
+            || (o.delivery_type == 'Delivery' && o.delivery_fee > 0 && o.delivery_fee <= 100 && text(o.customer_info.address, 6, 200)))
+        && text(o.delivery_date, 10, 10) && o.delivery_date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && o.delivery_slot in ['10:00 AM - 02:00 PM', '02:00 PM - 06:00 PM', '06:00 PM - 08:30 PM']
+        && o.payment_method in ['cash', 'zelle']
+        && o.payment_status == 'unpaid'
+        && o.order_status == 'received'
+        && o.customer_info is map
+        && o.customer_info.keys().hasOnly(['name', 'email', 'phone', 'address', 'notes'])
+        && text(o.customer_info.name, 1, 120)
+        && text(o.customer_info.email, 5, 200)
+        && text(o.customer_info.phone, 7, 40)
+        && text(o.customer_info.address, 0, 200)
+        && text(o.customer_info.notes, 0, 500)
+        && o.created_at == request.time
+        && o.updated_at == request.time;
+    }
 
     // Public catalog: anyone can read active products; only admins write.
     match /products/{id} {
@@ -14,14 +59,27 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Orders are created ONLY by the createOrderAndPayment Cloud Function (Admin SDK).
-    // Customers may read their own order (by uid or the anonymous uid that placed it); admins read/update all.
+    // The storefront reads admin/access to find out whether the signed-in
+    // account is an admin. Nothing is stored here.
+    match /admin/{doc} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Orders. A signed-in customer (guests are signed in anonymously) may place
+    // a pay-on-delivery order under their own uid and read it back. Card orders
+    // are written by the createOrderAndPayment Cloud Function, which bypasses
+    // these rules. Nobody can edit or delete an order except an admin moving it
+    // along, recording the payment or cancelling it.
     match /orders/{id} {
-      allow create, delete: if false;
+      allow create: if signedIn() && id.matches('LR-[A-Z0-9]{6}') && validNewOrder(request.resource.data);
+      allow delete: if false;
       allow read: if isAdmin() || (signedIn() && (resource.data.user_id == request.auth.uid || resource.data.auth_uid == request.auth.uid));
       allow update: if isAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['order_status', 'updated_at', 'admin_notes'])
-        && request.resource.data.order_status in ['received', 'baking', 'shipped', 'delivered'];
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['order_status', 'payment_status', 'updated_at', 'admin_notes'])
+        && request.resource.data.order_status in ['received', 'baking', 'shipped', 'delivered', 'cancelled']
+        && (request.resource.data.payment_status == resource.data.payment_status
+            || (resource.data.payment_status in ['unpaid', 'paid'] && request.resource.data.payment_status in ['unpaid', 'paid']));
     }
 
     match /{document=**} { allow read, write: if false; }

@@ -3,11 +3,11 @@ import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useAuth } from '../context/AuthContext'
-import { createOrderAndPayment, quoteDeliveryFee } from '../lib/store'
+import { placeOrder, quoteDeliveryFee } from '../lib/store'
 import { DELIVERY, maxDeliveryMiles, slotLabel, earliestDeliveryDate, latestDeliveryDate, addDays, shopToday, pastCutoff, cutoffLabel } from '../../functions/delivery.js'
 import { DEMO } from '../lib/firebase'
 import { DELIVERY_SLOTS } from '../lib/mockData'
-import { BUSINESS } from '../lib/business'
+import { BUSINESS, PAY_ONLINE, PAYMENT_METHODS } from '../lib/business'
 import BagChanges from '../components/BagChanges'
 import { money, dateLabel, nextDays } from '../lib/format'
 
@@ -18,7 +18,7 @@ function friendlyError(err) {
   const code = String(err?.code || '').replace(/^functions\//, '')
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return "You're offline. Reconnect and tap Pay again; your bag is saved."
   if (['invalid-argument', 'failed-precondition', 'unauthenticated', 'unavailable'].includes(code) && err.message) return err.message
-  return "We couldn't place the order. Nothing was charged. Try again, or message us on WhatsApp."
+  return `We couldn't place the order.${PAY_ONLINE ? ' Nothing was charged.' : ''} Try again, or message us on WhatsApp.`
 }
 
 const minFee = Math.min(...DELIVERY.tiers.map((t) => t.fee))
@@ -50,10 +50,14 @@ export default function Checkout() {
   const { user, signInGoogle, signInGuest } = useAuth()
   const nav = useNavigate()
   const days = nextDays(7)
-  const [form, setForm] = useState({ delivery_type: 'Delivery', delivery_date: days[0], delivery_slot: DELIVERY_SLOTS[0], name: user?.name || '', email: user?.email || '', phone: '', address: '', notes: '' })
+  const [form, setForm] = useState({ delivery_type: 'Delivery', delivery_date: days[0], delivery_slot: DELIVERY_SLOTS[0], payment_method: PAYMENT_METHODS[0].key, name: user?.name || '', email: user?.email || '', phone: '', address: '', notes: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  // The account loads after the first render; fill in what Google already knows.
+  useEffect(() => {
+    if (user && !user.isAnonymous) setForm((f) => ({ ...f, name: f.name || user.name || '', email: f.email || user.email || '' }))
+  }, [user])
   const delivering = form.delivery_type === 'Delivery'
   const quote = useDeliveryQuote(form.address, delivering)
   const deliveryFee = delivering && quote.status === 'ok' ? quote.fee : 0
@@ -84,17 +88,17 @@ export default function Checkout() {
         items: cart.items.map(({ product_id, name, quantity, unit_price }) => ({ product_id, name, quantity, unit_price })),
         box_id: cart.box?.id || null,
         box_discount: cart.discount,
-        delivery_fee: deliveryFee, // shown to the customer; the server measures and charges its own
+        delivery_fee: deliveryFee, // with card payments the server measures and charges its own
+        delivery_miles: delivering && quote.status === 'ok' ? quote.miles : null,
+        payment_method: form.payment_method,
         delivery_type: form.delivery_type,
         delivery_date: form.delivery_date,
         delivery_slot: form.delivery_slot,
         customer_info: { name: form.name, email: form.email, phone: form.phone, address: form.delivery_type === 'Delivery' ? form.address : '', notes: form.notes },
       }
-      const { orderId, clientSecret } = await createOrderAndPayment(payload)
-      if (!DEMO) {
-        // Stripe Payment Element confirmation happens on the order page (see OrderStatus + functions/README).
-        sessionStorage.setItem(`lr-cs-${orderId}`, clientSecret)
-      }
+      const { orderId, clientSecret } = await placeOrder(payload)
+      // With card payments, the Stripe Payment Element is confirmed on the order page (see OrderStatus).
+      if (!DEMO && clientSecret) sessionStorage.setItem(`lr-cs-${orderId}`, clientSecret)
       cart.dispatch({ type: 'clear' })
       nav(`/order/${orderId}`)
     } catch (err) {
@@ -172,7 +176,7 @@ export default function Checkout() {
             <input required className="input" autoComplete="name" value={form.name} onChange={set('name')} />
           </Field>
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Email" hint="Your receipt and order updates">
+            <Field label="Email" hint={PAY_ONLINE ? 'Your receipt and order updates' : "In case we can't reach your phone"}>
               <input required type="email" className="input" autoComplete="email" value={form.email} onChange={set('email')} />
             </Field>
             <Field label="Phone" hint="For WhatsApp updates">
@@ -194,12 +198,28 @@ export default function Checkout() {
           </Field>
         </fieldset>
 
+        {!PAY_ONLINE && (
+          <fieldset className="min-w-0">
+            <legend className="font-display text-2xl font-bold">How will you pay?</legend>
+            <p className="mt-1 text-sm text-cocoa2">Nothing to pay now. You pay when you {delivering ? 'receive' : 'pick up'} your order.</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {PAYMENT_METHODS.map((m) => (
+                <button type="button" key={m.key} onClick={() => setForm((f) => ({ ...f, payment_method: m.key }))} aria-pressed={form.payment_method === m.key}
+                  className={`rounded-tile p-4 text-left border-2 transition-colors ${form.payment_method === m.key ? 'border-raspberry bg-white' : 'border-transparent bg-oat'}`}>
+                  <p className="font-bold">{m.label}</p>
+                  <p className="text-xs text-cocoa2 mt-0.5">{m.hint}</p>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
         {error && <p role="alert" className="rounded-tile bg-raspberry/10 text-raspberry2 px-4 py-3 text-sm font-semibold">{error}</p>}
 
         <button type="submit" disabled={busy || (delivering && quote.status === 'loading')} className="btn-primary w-full sm:w-auto">
-          {busy ? 'Saving your order…' : delivering && quote.status === 'error' ? 'Choose pickup or another address' : delivering && !deliveryReady ? 'Add your address to see the total' : `Continue to payment · ${money(total)}`}
+          {busy ? 'Saving your order…' : delivering && quote.status === 'error' ? 'Choose pickup or another address' : delivering && !deliveryReady ? 'Add your address to see the total' : `${PAY_ONLINE ? 'Continue to payment' : 'Place order'} · ${money(total)}`}
         </button>
-        <p className="text-xs text-cocoa/60">You'll enter your card on the next screen. Cards are processed by Stripe; we never see your card number. By continuing you agree to our <Link to="/policies" className="font-semibold underline underline-offset-2">cancellation, refund and privacy policies</Link>.</p>
+        <p className="text-xs text-cocoa/60">{PAY_ONLINE ? "You'll enter your card on the next screen. Cards are processed by Stripe; we never see your card number." : "We start baking the day before your date. Next, send us your order on WhatsApp so we can confirm it."} By continuing you agree to our <Link to="/policies" className="font-semibold underline underline-offset-2">cancellation, refund and privacy policies</Link>.</p>
       </form>
 
       <aside className="lg:col-span-5">

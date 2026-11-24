@@ -18,7 +18,22 @@ Any build without `VITE_FIREBASE_API_KEY` runs in demo mode. Visit `/admin` and 
 
 Fonts are vendored, not fetched from Google. `npm run fonts` re-downloads Bricolage Grotesque and Manrope into `src/assets/fonts` and regenerates `src/fonts.css`; both are variable fonts, so one woff2 per family and subset covers every weight.
 
-## Go live
+## Live now: pay on delivery (free Firebase plan)
+Project `cokkies-d254d` ("loveraiz"), live at https://cokkies-d254d.web.app.
+
+With `VITE_STRIPE_PUBLISHABLE_KEY` empty the shop takes orders without online payment:
+the storefront writes the order to Firestore (`firestore.rules` validates it), the customer
+pays with cash or Zelle on delivery/pickup and confirms on WhatsApp, and the kitchen marks it
+paid in `/admin`. No Cloud Functions, no Storage, no emails.
+
+- Deploy: `npm run deploy` (hosting + Firestore rules and indexes).
+- Admins: the Google accounts listed in `isAdmin()` in `firestore.rules`. Edit, then `npm run deploy:rules`.
+- First run: sign in at `/admin` → Inventory → "Load the starter menu".
+- Product photos are shrunk in the browser and saved inside the product (no Storage needed).
+- Delivery fee: the browser asks the US Census geocoder directly (JSONP) and applies the tiers in `functions/delivery.js`.
+- Payment methods: `PAYMENT_METHODS` in `src/lib/business.js` (keep `firestore.rules` in step).
+
+## Switching to card payments (Stripe, needs the Blaze plan)
 1. `firebase login && firebase use --add` (pick your project)
 2. Copy `.env.example` → `.env` and fill the Firebase web config + `VITE_STRIPE_PUBLISHABLE_KEY` + `VITE_WHATSAPP_NUMBER`.
 3. Enable **Google** and **Anonymous** sign-in in Firebase Auth.
@@ -30,7 +45,7 @@ Fonts are vendored, not fetched from Google. `npm run fonts` re-downloads Bricol
    firebase functions:secrets:set SMTP_URL                # e.g. smtps://resend:re_xxx@smtp.resend.com:465
    ```
 5. Seed the catalog: `GOOGLE_APPLICATION_CREDENTIALS=./functions/serviceAccount.json node seed.js`
-6. Deploy: `npm run deploy`. Then in Stripe → Webhooks add
+6. Deploy: `npm run deploy:full`. Then in Stripe → Webhooks add
    `https://us-central1-<project>.cloudfunctions.net/stripeWebhook` with events
    `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`.
 7. Make yourself admin: `cd functions && node scripts/setAdmin.js you@gmail.com` (sign out/in afterwards).
@@ -39,7 +54,7 @@ Fonts are vendored, not fetched from Google. `npm run fonts` re-downloads Bricol
    `ENFORCE_APP_CHECK=1` in `functions/.env` and redeploy. Do these in that order:
    enforcing before the client sends tokens rejects every checkout.
 
-`npm run deploy` also creates the `releaseAbandonedOrders` schedule, which needs the
+`npm run deploy:full` also creates the `releaseAbandonedOrders` schedule, which needs the
 Cloud Scheduler API enabled on the project (Firebase prompts for it on first deploy).
 
 ## Made to order, no stock

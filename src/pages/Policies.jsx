@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { BUSINESS, whatsappUrl } from '../lib/business'
+import { BUSINESS, PAY_ONLINE, PAYMENT_METHODS, whatsappUrl } from '../lib/business'
 import { DELIVERY, ORDERING, maxDeliveryMiles, cutoffLabel } from '../../functions/delivery.js'
 import { money } from '../lib/format'
 
 // Standard terms for a small made-to-order bakery. Review them before launch;
 // they are a common baseline, not legal advice.
-const UPDATED = 'September 27, 2026'
+const UPDATED = 'November 14, 2026'
 const CANCEL_HOURS = 48
 
 const SECTIONS = [
@@ -61,11 +61,12 @@ export default function Policies() {
         </Section>
 
         <Section id="cancellations" title="Cancellations & refunds">
-          <p><strong>Up to {CANCEL_HOURS} hours before</strong> your delivery or pickup date, you can cancel for a full refund or move your order to another date.</p>
-          <p><strong>Less than {CANCEL_HOURS} hours before</strong>, we've already bought ingredients and scheduled your bake, so orders can't be refunded. We can usually move the date once if you tell us at least 24 hours ahead. If you placed your order less than {CANCEL_HOURS} hours ahead, you can still cancel within 1 hour of ordering.</p>
+          {!PAY_ONLINE && <p><strong>Payment.</strong> You pay when you receive or pick up your order, with {PAYMENT_METHODS.map((m) => m.label).join(' or ')}. Nothing is charged online.</p>}
+          <p><strong>Up to {CANCEL_HOURS} hours before</strong> your delivery or pickup date, you can cancel {PAY_ONLINE ? 'for a full refund' : 'at no cost'} or move your order to another date.</p>
+          <p><strong>Less than {CANCEL_HOURS} hours before</strong>, we've already bought ingredients and scheduled your bake, so orders {PAY_ONLINE ? "can't be refunded" : "can't be cancelled and are still due"}. We can usually move the date once if you tell us at least 24 hours ahead. If you placed your order less than {CANCEL_HOURS} hours ahead, you can still cancel within 1 hour of ordering.</p>
           <p><strong>Something wrong with your order?</strong> Contact us within 24 hours with your order number and a photo. If an item is damaged, missing or not what you ordered, we'll replace it or refund it.</p>
           <p>If we ever have to cancel or reschedule because of weather, illness or an emergency, we'll contact you right away and give you a full refund if the new date doesn't work for you.</p>
-          <p>Refunds go back to the card you paid with and usually appear in 5–10 business days. To cancel or change an order, message us on {contact} with your order number.</p>
+          <p>{PAY_ONLINE ? 'Refunds go back to the card you paid with and usually appear in 5–10 business days.' : 'Refunds are returned the same way you paid.'} To cancel or change an order, message us on {contact} with your order number.</p>
         </Section>
 
         <Section id="allergens" title="Allergens">
@@ -75,9 +76,9 @@ export default function Policies() {
 
         <Section id="privacy" title="Privacy">
           <p><strong>What we collect.</strong> When you order: your name, email, phone number, delivery address, delivery date and any notes. If you sign in with Google, your name and email from your Google account.</p>
-          <p><strong>Why.</strong> Only to bake, deliver and update you about your order by email or WhatsApp, and to answer your questions. We don't sell or rent your information, and we don't send marketing emails unless you ask us to.</p>
-          <p><strong>Payments.</strong> Cards are processed by Stripe. We never see or store your card number.</p>
-          <p><strong>Services we use.</strong> Google Firebase (hosting, order database, sign-in, and anonymous usage and performance statistics), Stripe (payments), our email provider (order emails), and the US Census Bureau geocoder, which receives your delivery address to measure the delivery distance. The shop also shows posts from Instagram.</p>
+          <p><strong>Why.</strong> Only to bake, deliver and update you about your order by phone, email or WhatsApp, and to answer your questions. We don't sell or rent your information, and we don't send marketing emails unless you ask us to.</p>
+          <p><strong>Payments.</strong> {PAY_ONLINE ? 'Cards are processed by Stripe. We never see or store your card number.' : "You pay in person or by Zelle. We don't take or store card details."}</p>
+          <p><strong>Services we use.</strong> Google Firebase (hosting, order database, sign-in, and anonymous usage and performance statistics), {PAY_ONLINE ? 'Stripe (payments), our email provider (order emails), ' : ''}WhatsApp (when you message us about your order), and the US Census Bureau geocoder, which receives your delivery address to measure the delivery distance. The shop also shows posts from Instagram.</p>
           <p><strong>On your device.</strong> Your bag is saved in your browser so it isn't lost if you leave the page. Firebase may set cookies for sign-in and statistics.</p>
           <p><strong>How long we keep it.</strong> Order records are kept as long as we need them for our accounting and taxes. You can ask us to see or delete your information at any time on {contact}.</p>
           <p>This shop isn't directed at children under 13.</p>

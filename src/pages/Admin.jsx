@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { DEMO } from '../lib/firebase'
 import OrdersBoard from '../components/admin/OrdersBoard'
@@ -18,7 +18,18 @@ export default function Admin() {
       </div>
     )
   }
-  if (!user.isAdmin) return <Navigate to="/" replace />
+  if (!user.isAdmin) {
+    return (
+      <div className="mx-auto max-w-md px-5 pt-20 text-center">
+        <h1 className="font-display text-3xl font-extrabold">This account isn't a kitchen admin</h1>
+        <p className="mt-2 text-cocoa2">You're signed in as {user.email}. Sign out and use the bakery's Google account.</p>
+        <div className="mt-6 flex flex-col gap-3">
+          <button onClick={signOut} className="btn-dark w-full">Sign out</button>
+          <Link to="/" className="btn-ghost w-full">Back to the shop</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-oat/40">

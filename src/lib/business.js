@@ -14,5 +14,19 @@ export const BUSINESS = {
   email: 'joseline03garcia@gmail.com',
 }
 
+/**
+ * How customers pay. With a Stripe publishable key configured the shop takes
+ * cards online (needs the Cloud Functions, so the paid Firebase plan). Without
+ * one, orders go straight to the kitchen and are paid on delivery or pickup.
+ */
+export const PAY_ONLINE = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+
+/** Pay-on-delivery options. The keys are checked by firestore.rules: change them in both places. */
+export const PAYMENT_METHODS = [
+  { key: 'cash', label: 'Cash', hint: 'When you get your cookies' },
+  { key: 'zelle', label: 'Zelle', hint: "We'll send the details on WhatsApp" },
+]
+export const paymentMethodLabel = (key) => PAYMENT_METHODS.find((m) => m.key === key)?.label || 'Card'
+
 export const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || '13468339153'
 export const whatsappUrl = (text = '') => `https://wa.me/${WHATSAPP_NUMBER}${text ? `?text=${encodeURIComponent(text)}` : ''}`

@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { subscribeAllOrders, updateOrderStatus } from '../../lib/store'
-import { ORDER_FLOW, statusLabel } from '../../lib/mockData'
+import { subscribeAllOrders, updateOrderStatus, cancelOrder, setOrderPaid } from '../../lib/store'
+import { ORDER_FLOW, statusLabel, isLiveOrder } from '../../lib/mockData'
+import { paymentMethodLabel } from '../../lib/business'
 import { money, dateLabel, timeAgo } from '../../lib/format'
 import OrderAdjustments from '../OrderAdjustments'
 import { shopToday, addDays } from '../../../functions/delivery.js'
 
 const PAYMENT_BADGE = {
   paid: ['Paid', 'bg-cocoa text-milk'],
+  unpaid: ['Collect on delivery', 'bg-caramel/40 text-cocoa'],
   failed: ['Payment failed', 'bg-raspberry text-milk'],
   expired: ['Expired, never paid', 'bg-oatdeep text-cocoa2'],
 }
-const paymentBadge = (status) => PAYMENT_BADGE[status] || ['Awaiting payment', 'bg-oat']
+const paymentBadge = (o) => {
+  if (o.order_status === 'cancelled') return ['Cancelled', 'bg-oatdeep text-cocoa2']
+  if (o.payment_status === 'unpaid') return [`Collect ${paymentMethodLabel(o.payment_method)}`, 'bg-caramel/40 text-cocoa']
+  return PAYMENT_BADGE[o.payment_status] || ['Awaiting payment', 'bg-oat']
+}
+// wa.me wants digits with the country code; US numbers are usually typed without it.
+const waNumber = (phone) => { const d = String(phone || '').replace(/\D/g, ''); return d.length === 10 ? `1${d}` : d }
 
 /** Two-tone chime, generated with the Web Audio API so there is no asset to load. */
 function chime() {
@@ -33,41 +41,46 @@ export default function OrdersBoard() {
   const [sound, setSound] = useState(true)
   const [filter, setFilter] = useState('active')
   const [selected, setSelected] = useState(null)
-  const paidIds = useRef(null)
+  const liveIds = useRef(null)
+  const [error, setError] = useState('')
+  // Shows a failed change (offline, signed out) instead of dropping it silently.
+  const run = (action) => { setError(''); Promise.resolve().then(action).catch((e) => { console.error(e); setError("That change didn't save. Check your connection and try again.") }) }
 
   useEffect(() => subscribeAllOrders(setOrders), [])
 
-  // Alert once for every order that flips to "paid" after the first snapshot.
+  // Alert once for every order that becomes one to bake (placed, or paid by
+  // card) after the first snapshot.
   useEffect(() => {
-    const paid = new Set(orders.filter((o) => o.payment_status === 'paid').map((o) => o.id))
-    if (paidIds.current === null) { paidIds.current = paid; return }
-    const fresh = [...paid].some((id) => !paidIds.current.has(id))
-    paidIds.current = paid
+    const live = new Set(orders.filter(isLiveOrder).map((o) => o.id))
+    if (liveIds.current === null) { liveIds.current = live; return }
+    const fresh = [...live].some((id) => !liveIds.current.has(id))
+    liveIds.current = live
     if (fresh && sound) chime()
   }, [orders, sound])
 
   const visible = useMemo(() => orders.filter((o) => {
-    if (filter === 'active') return o.order_status !== 'delivered'
-    if (filter === 'unpaid') return o.payment_status !== 'paid'
+    if (filter === 'active') return isLiveOrder(o) && o.order_status !== 'delivered'
+    if (filter === 'unpaid') return isLiveOrder(o) && o.payment_status === 'unpaid'
     return true
   }), [orders, filter])
 
   // Made to order: today the kitchen bakes what is delivered tomorrow.
   const today = shopToday()
   const tomorrow = addDays(today, 1)
-  const paid = orders.filter((o) => o.payment_status === 'paid')
+  const live = orders.filter(isLiveOrder)
   const bakeList = Object.entries(
-    paid.filter((o) => o.delivery_date === tomorrow)
+    live.filter((o) => o.delivery_date === tomorrow)
       .flatMap((o) => o.items)
       .reduce((acc, i) => ({ ...acc, [i.name]: (acc[i.name] || 0) + i.quantity }), {})
   ).sort((a, b) => b[1] - a[1])
   const stats = {
-    today: paid.filter((o) => o.delivery_date === today).length,
-    revenue: paid.filter((o) => o.created_at >= new Date(new Date().setHours(0, 0, 0, 0))).reduce((s, o) => s + o.total_amount, 0),
+    today: live.filter((o) => o.delivery_date === today).length,
+    revenue: live.filter((o) => o.created_at >= new Date(new Date().setHours(0, 0, 0, 0))).reduce((s, o) => s + o.total_amount, 0),
     cookies: bakeList.reduce((s, [, n]) => s + n, 0),
   }
 
-  const advance = (o) => { const i = ORDER_FLOW.findIndex((s) => s.key === o.order_status); if (i < ORDER_FLOW.length - 1) updateOrderStatus(o.id, ORDER_FLOW[i + 1].key) }
+  const advance = (o) => { const i = ORDER_FLOW.findIndex((s) => s.key === o.order_status); if (i >= 0 && i < ORDER_FLOW.length - 1) run(() => updateOrderStatus(o.id, ORDER_FLOW[i + 1].key)) }
+  const cancel = (o) => { if (window.confirm(`Cancel order ${o.id} for ${o.customer_info.name}? The customer will see it as cancelled.`)) run(() => cancelOrder(o.id)) }
   const current = selected ? orders.find((o) => o.id === selected) : null
 
   return (
@@ -75,7 +88,7 @@ export default function OrdersBoard() {
       <div className="lg:col-span-8">
         <div className="grid grid-cols-3 gap-3">
           <div className="tile p-4"><p className="text-sm text-cocoa2">Deliver today</p><p className="font-display text-3xl font-extrabold">{stats.today}</p></div>
-          <div className="tile p-4"><p className="text-sm text-cocoa2">Revenue today</p><p className="font-display text-3xl font-extrabold">{money(stats.revenue)}</p></div>
+          <div className="tile p-4"><p className="text-sm text-cocoa2">Ordered today</p><p className="font-display text-3xl font-extrabold">{money(stats.revenue)}</p></div>
           <div className="tile p-4"><p className="text-sm text-cocoa2">Bake today</p><p className="font-display text-3xl font-extrabold">{stats.cookies}</p></div>
         </div>
 
@@ -85,12 +98,12 @@ export default function OrdersBoard() {
             <ul className="mt-2 flex flex-wrap gap-2">
               {bakeList.map(([name, n]) => <li key={name} className="rounded-chip bg-oat px-3 py-1 text-sm"><span className="font-bold">{n}</span> {name}</li>)}
             </ul>
-          ) : <p className="mt-1 text-sm text-cocoa2">No paid orders for tomorrow yet.</p>}
+          ) : <p className="mt-1 text-sm text-cocoa2">No orders for tomorrow yet.</p>}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-1">
-            {[['active', 'Active'], ['unpaid', 'Awaiting payment'], ['all', 'All']].map(([k, l]) => (
+            {[['active', 'Active'], ['unpaid', 'To collect'], ['all', 'All']].map(([k, l]) => (
               <button key={k} onClick={() => setFilter(k)} className={`px-3 py-1.5 rounded-chip text-sm font-semibold ${filter === k ? 'bg-cocoa text-milk' : 'bg-white hover:bg-oat'}`}>{l}</button>
             ))}
           </div>
@@ -110,7 +123,7 @@ export default function OrdersBoard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold">{o.id}</p>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-chip ${paymentBadge(o.payment_status)[1]}`}>{paymentBadge(o.payment_status)[0]}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-chip ${paymentBadge(o)[1]}`}>{paymentBadge(o)[0]}</span>
                       <span className="text-xs text-cocoa/50">{timeAgo(o.created_at)}</span>
                     </div>
                     <p className="text-sm mt-0.5 truncate">{o.customer_info.name} · {o.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}</p>
@@ -150,14 +163,24 @@ export default function OrdersBoard() {
                   )
                 })}
               </ol>
-              {current.order_status !== 'delivered' && (
-                <button onClick={() => advance(current)} disabled={current.payment_status !== 'paid'} className="btn-primary w-full mt-4 text-sm">
-                  {current.payment_status !== 'paid' ? 'Waiting for payment' : `Move to: ${ORDER_FLOW[ORDER_FLOW.findIndex((s) => s.key === current.order_status) + 1]?.label}`}
+              {error && <p role="alert" className="mt-3 rounded-tile bg-raspberry/10 px-3 py-2 text-sm font-semibold text-raspberry2">{error}</p>}
+              {current.order_status === 'cancelled' ? (
+                <p className="mt-4 rounded-tile bg-oat px-3 py-2 text-sm font-semibold">Cancelled. Not on the bake list.</p>
+              ) : current.order_status !== 'delivered' && (
+                <button onClick={() => advance(current)} disabled={!isLiveOrder(current)} className="btn-primary w-full mt-4 text-sm">
+                  {!isLiveOrder(current) ? 'Waiting for payment' : `Move to: ${ORDER_FLOW[ORDER_FLOW.findIndex((s) => s.key === current.order_status) + 1]?.label}`}
                 </button>
+              )}
+              {['paid', 'unpaid'].includes(current.payment_status) && current.payment_method && current.order_status !== 'cancelled' && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-tile bg-oat px-3 py-2 text-sm">
+                  <span className="font-semibold">{current.payment_status === 'paid' ? `Paid · ${paymentMethodLabel(current.payment_method)}` : `Collect ${money(current.total_amount)} · ${paymentMethodLabel(current.payment_method)}`}</span>
+                  <button onClick={() => run(() => setOrderPaid(current.id, current.payment_status !== 'paid'))} className="shrink-0 font-semibold underline underline-offset-4">{current.payment_status === 'paid' ? 'Undo' : 'Mark as paid'}</button>
+                </div>
               )}
               <div className="mt-5 text-sm space-y-1">
                 <p className="font-bold">{current.customer_info.name}</p>
-                <p><a className="underline" href={`tel:${current.customer_info.phone}`}>{current.customer_info.phone}</a> · <a className="underline" href={`mailto:${current.customer_info.email}`}>{current.customer_info.email}</a></p>
+                <p><a className="underline" href={`tel:${current.customer_info.phone}`}>{current.customer_info.phone}</a> · <a className="underline" href={`https://wa.me/${waNumber(current.customer_info.phone)}?text=${encodeURIComponent(`Hi ${current.customer_info.name.split(' ')[0]}! This is Love Raíz about your order ${current.id}.`)}`} target="_blank" rel="noreferrer">WhatsApp</a> · <a className="underline" href={`mailto:${current.customer_info.email}`}>Email</a></p>
+                <p className="text-cocoa2">{current.delivery_type} · {dateLabel(current.delivery_date)} · {current.delivery_slot}</p>
                 {current.customer_info.address && <p>{current.customer_info.address}</p>}
                 {current.customer_info.notes && <p className="rounded-tile bg-caramel/20 px-3 py-2 mt-2">"{current.customer_info.notes}"</p>}
               </div>
@@ -165,6 +188,9 @@ export default function OrdersBoard() {
                 {current.items.map((i) => <li key={i.product_id} className="py-2 flex justify-between"><span>{i.quantity} × {i.name}</span><span className="font-semibold">{money(i.quantity * i.unit_price)}</span></li>)}
               </ul>
               <OrderAdjustments order={current} className="pt-2 border-t border-cocoa/10" />
+              {!['delivered', 'cancelled'].includes(current.order_status) && (
+                <button onClick={() => cancel(current)} className="mt-4 text-sm font-semibold text-raspberry2 underline underline-offset-4">Cancel this order</button>
+              )}
             </>
           )}
         </div>

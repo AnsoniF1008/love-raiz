@@ -61,7 +61,11 @@ export async function geocode(address, base = CENSUS) {
  * { ok: true, miles, fee, matched } | { ok: false, reason: 'not-found' | 'too-far', miles? }
  */
 export async function quoteDelivery(address, base) {
-  const place = await geocode(address, base)
+  return quoteForPlace(await geocode(address, base))
+}
+
+/** The same quote for an already geocoded place ({ lat, lng, matched } or null). */
+export function quoteForPlace(place) {
   if (!place) return { ok: false, reason: 'not-found' }
   const miles = milesBetween(DELIVERY.origin, place)
   const quote = feeForMiles(miles)
