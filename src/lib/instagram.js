@@ -17,10 +17,12 @@ export const INSTAGRAM_POSTS = [
   },
 ]
 
+const BASE = import.meta.env.BASE_URL || '/'
+
 /** Clips filmed in the kitchen — play on the shop, no Instagram. */
 export const KITCHEN_CLIPS = [
-  { id: 'bake-173139', src: '/videos/bake-173139.mp4', caption: 'Meet the cinnamonsters' },
-  { id: 'bake-173139-b', src: '/videos/bake-173139-b.mp4', caption: 'Spooky season' },
+  { id: 'bake-173139', src: `${BASE}videos/bake-173139.mp4`, caption: 'Meet the cinnamonsters' },
+  { id: 'bake-173139-b', src: `${BASE}videos/bake-173139-b.mp4`, caption: 'Spooky season' },
 ]
 
 export function postUrl(post) {
